@@ -1,0 +1,6 @@
+{
+  "awsSNSToken": "awsToken",
+  "slackWebHookUrl": "slackUrl",
+  "cronJobStartDelayLimit": 60,
+  "cronJobStopDelayLimit": 60
+}

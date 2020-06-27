@@ -1,0 +1,4 @@
+* * * * 1  ephraim cat test.txt && cp test.txt newtest.txt
+* 2 * * 4  ephraim cat test2.txt && cp test2.txt newtest2.txt
+* 4 * * 6  ephraim cat test3.txt && cp test3.txt newtest3.txt
+30 6 * * *  ephraim cat test4.txt && cp test4.txt newtest4.txt
