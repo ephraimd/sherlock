@@ -12,7 +12,7 @@ import java.util.concurrent.TimeoutException;
 public class SlackService {
     private final String slackWebHookUrl;
     private final String appName = "Sherlock";
-    private String payloadJsonTemplate = "{\n"
+    private String payloadJsonTemplate = "{\n" //TODO: use a configurable template mechanism
             + "    \"attachments\": [\n"
             + "        {\n"
             + "            \"fallback\": \"%s: %s\",\n"
