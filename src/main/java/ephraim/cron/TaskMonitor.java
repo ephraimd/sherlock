@@ -1,13 +1,15 @@
 package ephraim.cron;
 
+import ephraim.App;
 import ephraim.Slot;
 import ephraim.StaticJDispatcher;
 import ephraim.comms.SignalConstants;
-import ephraim.models.CronJob;
+import ephraim.models.Message;
+import ephraim.models.Task;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 
 
 /**
@@ -18,39 +20,105 @@ public class TaskMonitor {
     /**
      * Every Task feedback is logged here from all CronTask Threads
      */
-    private List<TaskFeedback> feedbackList = new ArrayList<>(500);
-    private static final int START_WAIT_LIMIT = 60; //seconds
-    private static final int END_WAIT_LIMIT = 3600 * 4; //seconds
+    public static List<TaskFeedback> feedbackList = new ArrayList<>(500);
+    private static HashMap<String, Integer> runningTaskList = new HashMap<>(50);
+    private final Task task;
+    /**
+     * THe combination of multiple events makes up a state, a state is updated on events,
+     * a watcher watches the state under a timer. This is the State-Event Pattern.
+     * - Needs a state updater, a watcher timer, and a watcher
+     */
+    //timer for state watching
+    private int timeCount = 0;
+    //state determinants to watch for (event) updates
+    private Message lastMessage = null;
+    //state updater
+    private Slot slot;
 
-    public List<TaskFeedback> getTaskActivityReport(){
-        return feedbackList;
+    public TaskMonitor(final Task task){
+        this.task = task;
     }
 
-    public static TaskFeedback monitor(final CronJob cronJob){
-        AtomicInteger timeCount = new AtomicInteger(0);
-        short jobStage = 0;  //0=not started, 1=started, 2=ended
-        List<Object> watchingNotifObjects = new ArrayList<>(10);
-        while(timeCount.get() < (cronJob.getTimeToNextExecution() + END_WAIT_LIMIT)){
-            //
-            timeCount.incrementAndGet();
-        }
-
-        Slot slot = new Slot() {
-            @Override
-            public void exec(Object... objects) {
-                //start counting
-                //if start, check time and add feedback,
-                //if end, mark end type and feedback
-                //if no start after count 1min, ping > feedback
-                //if no end after start over 4hrs, ping > feedback
-                //
-                StaticJDispatcher.getDispatcher().removeSlot(SignalConstants.APP_EVENT_TASK_STARTED_LOG, this);
+    public void monitor() {
+        //let us know if an instance of the task is still running
+        createTimer();
+        slot = objects -> {
+            Message message = (Message)objects[0];
+            if(message.getMessageForm() != Message.Form.TASK_UPDATE){
+                return;
+            }
+            String taskId = (String)message.getPayload();
+            if(taskId.equals(task.getId())){
+                //if the cronjob app sending a message matches the one this TaskMonitor instance is watching
+                lastMessage = message;
             }
         };
 
-        StaticJDispatcher.getDispatcher().addSlot(SignalConstants.APP_EVENT_TASK_STARTED_LOG, slot);
-        StaticJDispatcher.getDispatcher().addSlot(SignalConstants.APP_EVENT_TASK_STARTED_LOG, objects -> timeCount);
-        return null;
+        StaticJDispatcher.getDispatcher().addSlot(SignalConstants.APP_TASK_EVENT_LOG, slot); //state updater
+    }
+
+    private void establishTaskActive(){
+        if(runningTaskList.containsKey(task.getId())){
+            slackAlert(task.getId() + " has failed to start", "Test message body");
+        }
+    }
+    private void createTimer(){
+        Timer timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                if(task.isLongRunningApp() || timeCount < task.getEndTimeCheckLimit()){
+                    if(timeCount > task.getStartTimeCheckLimit() && (null == lastMessage || lastMessage.getPayloadInference() == Message.PayloadInference.APP_NOT_STARTED)){
+                        //alert, defer checking to later times for n number of times,
+                        //after which you stop watching
+                        slackAlert(task.getId() + " has failed to start", "Test message body");
+                    }
+                    if(!task.isLongRunningApp()){//slackAlert(task.getId() + " has failed to start", "Test message body");
+                        if(timeCount > task.getEndTimeCheckLimit() &&
+                                (null == lastMessage || lastMessage.getPayloadInference() == Message.PayloadInference.APP_TASK_STARTED)){
+                            slackAlert(task.getId() + " is taking too long on runtime", "Test message body");
+                        }
+                    }else{
+                        if(timeCount % task.getActivityWarnInterval() == 0 &&
+                                (null == lastMessage || lastMessage.getPayloadInference() == Message.PayloadInference.APP_TASK_STARTED)){
+                            slackAlert(task.getId() + " is still running", "Test message body"); //after x hours
+                        }
+                    }
+
+                    ++timeCount; //only one thread is working on this, so no race condition expected
+                }else{
+                    timer.cancel();
+                    runningTaskList.remove(task.getId());
+                    StaticJDispatcher.getDispatcher().removeSlot(SignalConstants.APP_TASK_EVENT_LOG, slot);
+                }
+            }
+        }, 0l, 1000l);
+    }
+
+    private void slackAlert(String title, String message){
+        System.out.println(title + " <> "+ message);
+        try {
+            App.slackService.sendErrorMessage(title, message);
+        } catch (InterruptedException ex) {
+            ex.printStackTrace();
+            if (App.jLogger.isLogToFile()) {
+                App.jLogger.error(ex);
+            }
+        } catch (ExecutionException ex) {
+            ex.printStackTrace();
+            if (App.jLogger.isLogToFile()) {
+                App.jLogger.error(ex);
+            }
+        } catch (TimeoutException ex) {
+            ex.printStackTrace();
+            if (App.jLogger.isLogToFile()) {
+                App.jLogger.error(ex);
+            }
+        }
+    }
+
+    public static List<TaskFeedback> getTaskActivityReport(){
+        return feedbackList;
     }
 
     public static class TaskFeedback{

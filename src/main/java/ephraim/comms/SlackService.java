@@ -1,6 +1,5 @@
 package ephraim.comms;
 
-import java.awt.*;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -13,6 +12,19 @@ import java.util.concurrent.TimeoutException;
 public class SlackService {
     private final String slackWebHookUrl;
     private final String appName = "Sherlock";
+    private String payloadJsonTemplate = "{\n"
+            + "    \"attachments\": [\n"
+            + "        {\n"
+            + "            \"fallback\": \"%s: %s\",\n"
+            + "            \"color\": \"%s\",\n"
+            + "\"pretext\": \"Apps Activity update from %s\","
+            + "            \"author_name\": \"%s\",\n"
+            + "            \"title\": \"%s\",\n"
+            + "            \"text\": \"%s\",\n"
+            + "        	\"footer\": \"Sherlock\"\n"
+            + "        }\n"
+            + "    ]\n"
+            + "}";
 
     private void send(String payload) throws InterruptedException, ExecutionException, TimeoutException {
         HttpClient client = HttpClient.newHttpClient();
@@ -28,8 +40,7 @@ public class SlackService {
         .get(5, TimeUnit.MINUTES);
     }
     private String buildMessagePayload(String title, String message, String color){
-        //todo: implement payload building
-        return "";
+        return String.format(payloadJsonTemplate,  appName, message, color, appName, appName, title, message);
     }
 
     public SlackService(String slackWebHookUrl){
@@ -37,9 +48,9 @@ public class SlackService {
     }
 
     public void sendErrorMessage(String title, String message) throws InterruptedException, ExecutionException, TimeoutException {
-        send(buildMessagePayload(title, message, "red"));
+        send(buildMessagePayload(title, message, "#d1383d"));
     }
     public void sendMessage(String title, String message) throws InterruptedException, ExecutionException, TimeoutException {
-        send(buildMessagePayload(title, message, "green"));
+        send(buildMessagePayload(title, message, "#2eb886"));
     }
 }

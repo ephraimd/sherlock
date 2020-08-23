@@ -1,0 +1,15 @@
+{
+  "jsonObjectList": [
+    {
+      "timeString": "*/1 * * * *",
+      "id": "some_unique_app_id",
+      "appSecret": "to_make_sure_its_from_app",
+      "isEnabled": true,
+      "isLongRunningApp": false,
+      "startTimeCheckLimit": 10,
+      "endTimeCheckLimit": 10800,
+      "exactLocalSendTime": 2374638,
+      "activityWarnInterval": 7200
+    }
+  ]
+}

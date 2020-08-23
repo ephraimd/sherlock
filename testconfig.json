@@ -1,6 +1,6 @@
 {
   "awsSNSToken": "awsToken",
-  "slackWebHookUrl": "slackUrl",
+  "slackWebHookUrl": "https://hooks.slack.com/services/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",
   "cronJobStartDelayLimit": 60,
   "cronJobStopDelayLimit": 60
 }
